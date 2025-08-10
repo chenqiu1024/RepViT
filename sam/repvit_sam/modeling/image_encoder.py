@@ -1,3 +1,13 @@
+"""
+SAM ImageEncoderViT
+
+ViT-style image encoder with optional windowed attention and relative position
+bias, adapted from ViTDet. This corresponds to the image encoder described in
+the SAM paper (see docs/Segment Anything.pdf, Sec. 3), producing a fixed-size
+embedding consumed by the mask decoder.
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

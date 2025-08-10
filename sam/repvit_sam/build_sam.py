@@ -1,3 +1,14 @@
+"""
+Builders for Segment Anything Model (SAM) variants, including a RepViT-backed SAM.
+
+Mappings to papers in docs/:
+- Segment Anything (SAM) (2023): overall architecture with ImageEncoderViT,
+  PromptEncoder, TwoWayTransformer-powered MaskDecoder.
+- RepViT-SAM (2023): replaces heavy ViT image encoder with RepViT to achieve
+  real-time performance while retaining mask quality. See `build_sam_repvit`.
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

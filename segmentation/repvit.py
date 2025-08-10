@@ -1,3 +1,14 @@
+"""
+RepViT backbone registered for MMSegmentation.
+
+This adapts the RepViT building blocks to output multi-scale features
+(`out_indices`) for FPN/decoder heads. The re-parameterizable DW token mixer
+and channel MLP follow the RepViT paper (see docs/RepViT-*.pdf). BatchNorm
+layers are set to eval during training to stabilize statistics before deploy
+fusion.
+
+Only comments added.
+"""
 import torch.nn as nn
 import numpy as np
 import itertools

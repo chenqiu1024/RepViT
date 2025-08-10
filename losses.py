@@ -1,5 +1,14 @@
 """
-Implements the knowledge distillation loss, proposed in deit
+Implements the knowledge distillation loss, proposed in DeiT.
+
+Context in this repo:
+- Used to train compact RepViT backbones with a stronger teacher to improve
+  accuracy-efficiency trade-offs highlighted in the RepViT paper (see docs/).
+  While DeiT is not attached in docs/, the mechanism is standard: combine
+  base loss with teacher supervision via KL (soft) or CE with teacher argmax
+  (hard). RepViT-SAM inherits the trained RepViT encoder to accelerate SAM.
+
+Note: Only comments added; behavior unchanged.
 """
 import torch
 from torch.nn import functional as F
@@ -29,6 +38,11 @@ class DistillationLoss(torch.nn.Module):
                 either a Tensor, or a Tuple[Tensor, Tensor], with the original output
                 in the first position and the distillation predictions as the second output
             labels: the labels for the base criterion
+
+        Returns:
+            Combined loss = (1 - alpha) * base_loss + alpha * distillation_loss
+            where the distillation term follows DeiT (soft/hard). See RepViT docs
+            for training recipes that leverage distillation.
         """
         outputs_kd = None
         if not isinstance(outputs, torch.Tensor):

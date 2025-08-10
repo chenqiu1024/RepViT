@@ -1,3 +1,16 @@
+"""
+SAM MaskDecoder
+
+Implements the two-way transformer fusion of prompt and image embeddings and
+hypernetwork-based mask prediction as described in the SAM paper (see docs/).
+
+Key pieces:
+- iou_token / mask_tokens: tokens that supervise IoU head and generate masks
+- output_upscaling: upsample transformer features to mask resolution
+- output_hypernetworks_mlps: per-mask hypernet to predict masks from features
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

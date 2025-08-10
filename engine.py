@@ -1,5 +1,18 @@
 """
 Train and eval functions used in main.py
+
+This training loop supports knowledge distillation following DeiT-style losses
+and EMA tracking from timm.
+
+Background and relations to docs/ papers:
+- RepViT and RepViT-SAM emphasize deployment efficiency; this engine uses BN
+  eval freezing (set_bn_eval) and gradient clipping modes conducive to stable
+  training before fusing at deploy.
+- DistillationLoss mirrors DeiT (not in docs/ here) but is used in RepViT
+  training to improve accuracy of small backbones; see RepViT paper for
+  training recipe references.
+
+Note: Only comments added.
 """
 import math
 import sys
@@ -14,6 +27,10 @@ from losses import DistillationLoss
 import utils
 
 def set_bn_state(model):
+    """Optionally set BatchNorm modules to eval mode during fine-tuning to
+    stabilize statistics, as suggested in efficient CNN deployment literature.
+    Useful prior to Conv-BN fusion used in RepViT deployment.
+    """
     for m in model.modules():
         if isinstance(m, torch.nn.modules.batchnorm._BatchNorm):
             m.eval()
@@ -26,6 +43,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
                     model_ema: Optional[ModelEma] = None, mixup_fn: Optional[Mixup] = None,
                     set_training_mode=True,
                     set_bn_eval=False,):
+    """Standard one-epoch loop with AMP and optional knowledge distillation.
+
+    - Mixup/Cutmix follow timm recipes commonly used in lightweight backbones.
+    - Loss is wrapped by DistillationLoss (see losses.py) to combine base loss
+      and teacher supervision, in line with RepViT training setups.
+    """
     model.train(set_training_mode)
     if set_bn_eval:
         set_bn_state(model)
@@ -75,6 +98,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
 
 @torch.no_grad()
 def evaluate(data_loader, model, device):
+    """Validation loop computing Top-1/Top-5 accuracy and cross-entropy loss."""
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = utils.MetricLogger(delimiter="  ")

@@ -1,3 +1,24 @@
+"""
+RepViT classification backbone
+
+This file implements the RepViT block stack used for efficient vision backbones.
+Key ideas mirror those described in the RepViT family:
+- Re-parameterizable depthwise conv branches ("RepVGGDW") for token mixing,
+  fused into a single conv for inference to reduce latency.
+- Channel mixing via pointwise MLP (1x1 convs) with residual connection.
+- Optional squeeze-and-excitation (SE) for attention along channels.
+
+Relevant references in docs/ (for architectural intuition and deployment):
+- RepViT: Revisiting Mobile CNN From ViT Perspective (2023) — see sections on
+  re-parameterization and efficient token/channel mixing.
+- RepViT-SAM: Towards Real-Time Segmenting Anything (2023) — demonstrates using
+  RepViT as the image encoder for SAM to lower latency while preserving accuracy.
+- An Image Is Worth 16x16 Words (ViT, 2020) and Masked Autoencoders (MAE, 2021)
+  provide background on tokenization and representation learning trends that inspired
+  efficient token mixing in modern CNN/ViT hybrids.
+
+Note: Only comments were added for documentation/citation; no functional code changes.
+"""
 import torch.nn as nn
 
 def _make_divisible(v, divisor, min_value=None):
@@ -35,6 +56,12 @@ class Conv2d_BN(torch.nn.Sequential):
 
     @torch.no_grad()
     def fuse(self):
+        """
+        Fuse Conv2d + BatchNorm2d into a single Conv2d for faster inference.
+        This is a standard deployment trick discussed widely and also applied in
+        RepViT/RepVGG-style re-parameterization. The resulting conv "bakes in"
+        the BN affine and running-statistics.
+        """
         c, bn = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps)**0.5
         w = c.weight * w[:, None, None, None]
@@ -62,6 +89,13 @@ class Residual(torch.nn.Module):
     
     @torch.no_grad()
     def fuse(self):
+        """
+        When the residual wrapper contains a depthwise Conv2d_BN (or Conv2d),
+        fuse the branch and add identity via a kernel with center set to 1.0.
+        This follows the re-parameterization principle used in RepVGG/RepViT,
+        enabling the residual path to be represented as a single conv at deploy.
+        See RepViT in docs for the deployment strategy.
+        """
         if isinstance(self.m, Conv2d_BN):
             m = self.m.fuse()
             assert(m.groups == m.in_channels)
@@ -93,6 +127,12 @@ class RepVGGDW(torch.nn.Module):
     
     @torch.no_grad()
     def fuse(self):
+        """
+        Fuse the 3x3 depthwise branch, the 1x1 depthwise branch, and identity
+        into a single depthwise 3x3 conv, then fold the trailing BN. This is the
+        core re-parameterization step that makes training-time multi-branch
+        structure deploy as a single conv for low latency (see RepViT/RepVGG).
+        """
         conv = self.conv.fuse()
         conv1 = self.conv1
         
@@ -130,6 +170,9 @@ class RepViTBlock(nn.Module):
         assert(hidden_dim == 2 * inp)
 
         if stride == 2:
+            # Downsampling stage: use depthwise token mixer (spatial conv) possibly
+            # with SE, then pointwise channel mixer (MLP via 1x1 convs). This mirrors
+            # the token/channel split in RepViT blocks as described in the paper.
             self.token_mixer = nn.Sequential(
                 Conv2d_BN(inp, inp, kernel_size, stride, (kernel_size - 1) // 2, groups=inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
@@ -144,6 +187,9 @@ class RepViTBlock(nn.Module):
                 ))
         else:
             assert(self.identity)
+            # Identity stage: RepVGGDW provides a re-parameterizable token mixer
+            # with an implicit identity path, followed by channel MLP. During
+            # deployment, the RepVGGDW block can be fused to a single conv.
             self.token_mixer = nn.Sequential(
                 RepVGGDW(inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
@@ -171,6 +217,11 @@ class BN_Linear(torch.nn.Sequential):
 
     @torch.no_grad()
     def fuse(self):
+        """
+        Fuse BatchNorm1d into Linear by folding affine params and statistics.
+        This mirrors the Conv-BN folding used for conv layers and simplifies
+        deployment graphs.
+        """
         bn, l = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps)**0.5
         b = bn.bias - self.bn.running_mean * \
@@ -204,6 +255,10 @@ class Classfier(nn.Module):
 
     @torch.no_grad()
     def fuse(self):
+        """
+        If distillation was used, average the fused heads for evaluation
+        consistency, following standard practice in DeiT-style distillation.
+        """
         classifier = self.classifier.fuse()
         if self.distillation:
             classifier_dist = self.classifier_dist.fuse()
@@ -222,11 +277,14 @@ class RepViT(nn.Module):
         self.cfgs = cfgs
 
         # building first layer
+        # Patch embedding: two strided convs to quickly reduce spatial resolution,
+        # analogous to ViT patchify but using convs for efficiency (cf. RepViT).
         input_channel = self.cfgs[0][2]
         patch_embed = torch.nn.Sequential(Conv2d_BN(3, input_channel // 2, 3, 2, 1), torch.nn.GELU(),
                            Conv2d_BN(input_channel // 2, input_channel, 3, 2, 1))
         layers = [patch_embed]
         # building inverted residual blocks
+        # Each cfg entry: [kernel_size, expansion, out_channels, use_se, use_hs, stride]
         block = RepViTBlock
         for k, t, c, use_se, use_hs, s in self.cfgs:
             output_channel = _make_divisible(c, 8)

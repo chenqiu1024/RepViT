@@ -1,3 +1,12 @@
+"""
+SAM PromptEncoder
+
+Embeds point, box, and mask prompts for the mask decoder. Matches the design
+in the SAM paper: random Fourier features positional encoding for points/boxes,
+and a small CNN to downscale input masks to the embedding grid.
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

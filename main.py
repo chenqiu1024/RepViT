@@ -1,3 +1,18 @@
+"""
+RepViT training entrypoint
+
+This script wires together data, model creation, optimizer/scheduler, optional
+knowledge distillation, and training/eval loops.
+
+How this relates to docs/:
+- RepViT and RepViT-SAM emphasize deployment-friendly backbones. This script
+  supports exporting config, setting BN to eval before evaluation, and optional
+  Conv-BN replacement via utils.replace_batchnorm during eval to mimic fused
+  deployment (as discussed in RepViT/RepVGG literature).
+- The trained RepViT can be used as an encoder for SAM (see sam/repvit_sam).
+
+Note: Only comments added; code unchanged.
+"""
 import argparse
 import datetime
 import numpy as np

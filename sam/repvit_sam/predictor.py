@@ -1,3 +1,13 @@
+"""
+High-level predictor that caches image embeddings and performs repeated mask
+predictions given prompts, matching the workflow described in the SAM paper.
+
+Context in docs/:
+- Segment Anything details promptable segmentation with point/box/mask inputs.
+- RepViT-SAM shows the same predictor logic with a lightweight RepViT encoder.
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

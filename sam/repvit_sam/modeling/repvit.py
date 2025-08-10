@@ -1,3 +1,16 @@
+"""
+RepViT backbone adapted for SAM image encoder use.
+
+Key ideas from docs/RepViT- Revisiting Mobile CNN From ViT Perspective.pdf:
+- Re-parameterizable depthwise token mixer (RepVGGDW) fused at deploy time.
+- Channel MLP via 1x1 convs with optional SE.
+- Early patch embedding by strided convs akin to conv-based tokenization.
+
+This variant outputs a 256-channel embedding via a lightweight neck with
+LayerNorm2d to match SAM's expected embedding dimension.
+
+Only comments added.
+"""
 import torch.nn as nn
 
 
@@ -55,6 +68,7 @@ class Conv2d_BN(torch.nn.Sequential):
 
     @torch.no_grad()
     def fuse(self):
+        """Fuse Conv+BN into a single Conv for deployment."""
         c, bn = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps)**0.5
         w = c.weight * w[:, None, None, None]
@@ -82,6 +96,7 @@ class Residual(torch.nn.Module):
     
     @torch.no_grad()
     def fuse(self):
+        """Fuse residual conv branch and identity into a single conv (Rep-style)."""
         if isinstance(self.m, Conv2d_BN):
             m = self.m.fuse()
             assert(m.groups == m.in_channels)
@@ -113,6 +128,7 @@ class RepVGGDW(torch.nn.Module):
     
     @torch.no_grad()
     def fuse(self):
+        """Fuse 3x3 DW, 1x1 DW, identity, then fold BN into the resulting conv."""
         conv = self.conv.fuse()
         conv1 = self.conv1
         
@@ -150,6 +166,7 @@ class RepViTBlock(nn.Module):
         assert(hidden_dim == 2 * inp)
 
         if stride == 2:
+            # Downsampling token mixer + channel mixer per RepViT
             self.token_mixer = nn.Sequential(
                 Conv2d_BN(inp, inp, kernel_size, stride if inp != 320 else 1, (kernel_size - 1) // 2, groups=inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
@@ -164,6 +181,7 @@ class RepViTBlock(nn.Module):
                 ))
         else:
             # assert(self.identity)
+            # Non-downsampling: re-parameterizable DW token mixer then channel MLP
             self.token_mixer = nn.Sequential(
                 RepVGGDW(inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
@@ -200,6 +218,7 @@ class BN_Linear(torch.nn.Sequential):
 
     @torch.no_grad()
     def fuse(self):
+        """Fold BN into Linear for inference."""
         bn, l = self._modules.values()
         w = bn.weight / (bn.running_var + bn.eps)**0.5
         b = bn.bias - self.bn.running_mean * \
@@ -233,6 +252,7 @@ class Classfier(nn.Module):
 
     @torch.no_grad()
     def fuse(self):
+        """Average fused heads if distillation used (DeiT-style)."""
         classifier = self.classifier.fuse()
         if self.distillation:
             classifier_dist = self.classifier_dist.fuse()
@@ -252,12 +272,12 @@ class RepViT(nn.Module):
 
         self.img_size = img_size
 
-        # building first layer
+        # building first layer (conv-based patch embedding)
         input_channel = self.cfgs[0][2]
         patch_embed = torch.nn.Sequential(Conv2d_BN(3, input_channel // 2, 3, 2, 1), torch.nn.GELU(),
                            Conv2d_BN(input_channel // 2, input_channel, 3, 2, 1))
         layers = [patch_embed]
-        # building inverted residual blocks
+        # building inverted residual blocks; cfg: [k, t, c, SE, HS, stride]
         block = RepViTBlock
         for k, t, c, use_se, use_hs, s in self.cfgs:
             output_channel = _make_divisible(c, 8)
@@ -287,6 +307,7 @@ class RepViT(nn.Module):
 
     def forward(self, x):
         # x = self.features(x)
+        # Produce dense feature map for SAM's mask decoder; neck adapts channels
         for f in self.features:
             x = f(x)
         # x = torch.nn.functional.adaptive_avg_pool2d(x, 1).flatten(1)
@@ -299,6 +320,7 @@ from timm.models import register_model
 def repvit(pretrained=False, num_classes = 1000, distillation=False, **kwargs):
     """
     Constructs a MobileNetV3-Large model
+    Factory for RepViT backbone configured for SAM image encoder.
     """
     cfgs = [
         # k, t, c, SE, HS, s 

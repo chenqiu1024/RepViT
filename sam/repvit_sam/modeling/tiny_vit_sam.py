@@ -1,3 +1,13 @@
+"""
+TinyViT variant used as an alternative lightweight SAM image encoder.
+
+This follows TinyViT design (Swin/LeViT-inspired) and includes a neck to
+produce a 256-channel dense embedding matching SAM expectations, as described
+in the SAM paper's lighter backbones discussion. RepViT-SAM provides an
+alternative CNN-based encoder with similar neck/output.
+
+Only comments added.
+"""
 # --------------------------------------------------------
 # TinyViT Model Architecture
 # Copyright (c) 2022 Microsoft

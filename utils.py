@@ -1,3 +1,14 @@
+"""
+Utility helpers for logging, distributed setup, and deployment-time BN replacement.
+
+Notes with respect to docs/ and RepViT deployment:
+- replace_batchnorm traverses the module graph to fuse Conv+BN and replace BN
+  with Identity, matching the re-parameterization strategy highlighted in RepViT.
+- Logging and distributed utilities follow standard practice for large-scale
+  training of efficient backbones.
+
+Only comments added.
+"""
 import io
 import os
 import time

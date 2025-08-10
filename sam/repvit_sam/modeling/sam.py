@@ -1,3 +1,18 @@
+"""
+Segment Anything Model (SAM) core module.
+
+Architecture per SAM paper (see docs/Segment Anything.pdf):
+- ImageEncoderViT (or TinyViT/RepViT variant) produces a dense image embedding
+  at fixed resolution.
+- PromptEncoder embeds points/boxes/masks and provides a dense positional grid.
+- MaskDecoder uses a Two-Way Transformer to fuse prompt and image embeddings and
+  predicts multiple candidate masks plus IoU-based quality.
+
+In this repo, RepViT-SAM replaces the heavy ViT-H encoder with a RepViT encoder
+for real-time usage (see docs/RepViT-SAM- Towards Real-Time Segmenting Anything.pdf).
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

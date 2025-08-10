@@ -1,3 +1,14 @@
+"""
+Automatic mask generation utility following the procedure in the SAM paper:
+- Build multi-scale crops and sample grids of point prompts per crop
+- Run predictor to obtain masks and IoU predictions
+- Filter masks by predicted IoU and stability score, suppress duplicates with NMS
+
+This mirrors Algorithm 1 from the SAM supplementary, adapted to work with the
+RepViT-backed SAM image encoder as well (see RepViT-SAM in docs/).
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 

@@ -1,3 +1,13 @@
+"""
+Two-Way Transformer (SAM)
+
+Implements the bi-directional attention between sparse prompts and dense image
+embeddings described in the SAM paper (see docs/Segment Anything.pdf). The
+decoder alternates point-to-image and image-to-point attentions, ending with a
+final attention and layer norm before mask prediction.
+
+Only comments added.
+"""
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
